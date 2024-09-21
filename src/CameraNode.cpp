@@ -85,6 +85,7 @@ public:
 private:
   libcamera::CameraManager camera_manager;
   std::shared_ptr<libcamera::Camera> camera;
+  std::string camera_name;
   libcamera::Stream *stream;
   std::shared_ptr<libcamera::FrameBufferAllocator> allocator;
   std::vector<std::unique_ptr<libcamera::Request>> requests;
@@ -250,6 +251,7 @@ CameraNode::CameraNode(const rclcpp::NodeOptions &options) : Node("camera", opti
   case rclcpp::ParameterType::PARAMETER_INTEGER:
   {
     const size_t id = get_parameter("camera").as_int();
+    camera_name = std::to_string(id);
     if (id >= camera_manager.cameras().size()) {
       RCLCPP_INFO_STREAM(get_logger(), camera_manager);
       throw std::runtime_error("camera with id " + std::to_string(id) + " does not exist");
@@ -260,6 +262,7 @@ CameraNode::CameraNode(const rclcpp::NodeOptions &options) : Node("camera", opti
   case rclcpp::ParameterType::PARAMETER_STRING:
   {
     const std::string name = get_parameter("camera").as_string();
+    camera_name = name;
     camera = camera_manager.get(name);
     if (!camera) {
       RCLCPP_INFO_STREAM(get_logger(), camera_manager);
@@ -371,10 +374,13 @@ CameraNode::CameraNode(const rclcpp::NodeOptions &options) : Node("camera", opti
   // format camera name for calibration file
   const libcamera::ControlList &props = camera->properties();
   std::string cname = camera->id() + '_' + scfg.size.toString();
-  const std::optional<std::string> model = props.get(libcamera::properties::Model);
-  if (model)
-    cname = model.value() + '_' + cname;
-
+  if(camera_name.empty()) {
+    const std::optional<std::string> model = props.get(libcamera::properties::Model);
+    if (model)
+      cname = model.value() + '_' + cname;
+  } else {
+    cname = camera_name + '_' + cname;
+  }
   // clean camera name of non-alphanumeric characters
   cname.erase(
     std::remove_if(cname.begin(), cname.end(), [](const char &x) { return std::isspace(x); }),
